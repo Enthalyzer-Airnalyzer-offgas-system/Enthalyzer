@@ -1,7 +1,7 @@
 /******************************************************************************
  * @name        = Enthalyzer.ino
- * @description = ESP32 firmware for the Enthalyzer (Water-Side Only). Reads 
- *                two MAX31865 Pt100 water temperatures and a pulse-type flow 
+ * @description = ESP32 firmware for the Enthalyzer.
+ *                Reads two MAX31865 Pt100 water temperatures and a pulse-type flow 
  *                sensor. Calculates the water-side heat gain and logs the 
  *                data every 10 s as semicolon-separated text.
  * @author      = [Ayur Jitendra Ghalot]
