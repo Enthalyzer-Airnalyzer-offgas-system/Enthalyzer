@@ -8,7 +8,7 @@ The condenser core is a helical, thin silicone coil (0.5 mm wall) through which 
 * Two 4-wire RTDs for water inlet and outlet temperatures
 * A flow sensor for water flow rate
 
-From these live readings, the firmware computes the real-time water-side heat gain (cooling duty, Q_water), which is streamed to a custom dashboard for continuous monitoring. This demonstrates that a low-cost sensor setup can track thermodynamic performance metrics that would otherwise require laboratory-grade instrumentation, while producing time-resolved data valuable for validating condenser performance and calibrating simulation models.
+From these live readings, the firmware computes the real-time water-side heat gain (cooling duty, Q_water), which is streamed for continuous monitoring. This demonstrates that a low-cost sensor setup can track thermodynamic performance metrics that would otherwise require laboratory-grade instrumentation, while producing time-resolved data valuable for validating condenser performance and calibrating simulation models.
 
 ### Dashboard & Sensor Network
 The real-time performance dashboard aggregates data from:
@@ -18,7 +18,7 @@ The real-time performance dashboard aggregates data from:
 <br>
 
 <p align="center">
-  <img width="800" alt="Process and instrumentation schematic" src="https://github.com/user-attachments/assets/26be32ff-801f-4081-b52b-92d2a110cffa" />
+  <img width="800" alt="Process and instrumentation schematic" src="https://github.com/user-attachments/assets/c73b02a5-5daa-41fa-a622-a07ecf301ecd" />
   <br>
-  <em>Figure 1: Process and instrumentation schematic of the compact 3D-printed condenser with real-time performance dashboard.</em>
+  <em>Figure 1: Process and instrumentation schematic of the compact 3D-printed condenser with real-time performance.</em>
 </p>
