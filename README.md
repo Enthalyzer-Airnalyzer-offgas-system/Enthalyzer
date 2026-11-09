@@ -20,15 +20,13 @@ The real-time performance dashboard aggregates data from:
 <br>
 
 <p align="center">
-  <img width="800" alt="<img width="849" height="479" alt="image" src="https://github.com/user-attachments/assets/9907be40-4054-4301-8081-aff6feed9008" />
-" />
+  <img width="800" alt="Process and instrumentation schematic" src="https://github.com/user-attachments/assets/48ddd521-3473-4a65-a05b-9796c32577ce" />
   <br>
   <em>Figure 1: Process and instrumentation schematic of the compact 3D-printed condenser with real-time performance dashboard.</em>
 </p>
 
 <p align="center">
-  <img width="800" alt="Enthalyzer Circuit Connection" src="<img width="3000" height="2319" alt="Enthalyzer Circuit" src="https://github.com/user-attachments/assets/6fc2f99c-53df-49c9-81ef-0d6be8abe30c" />
-" />
+  <img width="800" alt="Enthalyzer Circuit Connection" src="https://github.com/user-attachments/assets/58d5e34e-c747-475b-839a-70b4a077cd13" />
   <br>
   <em>Figure 2: Enthalyzer circuit connection wiring diagram.</em>
 </p>
