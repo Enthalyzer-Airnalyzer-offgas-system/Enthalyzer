@@ -1,7 +1,7 @@
 # Enthalyzer - A DIY Instrumentation for Bioprocess Exhaust Gas Condensation and Analysis
 **Open-source 3D-printed condenser and ESP32-based sensor network for real-time thermodynamic monitoring of aerated bioprocesses.**
 
-Reliable measurement inside compact, humid, condensing environments is challenging, as conventional instrumentation is bulky and unsuitable for smaller-scale setups. Additive manufacturing overcomes this by enabling complex internal geometries at a low cost, iteratively refining core designs. With this work, we present a live-monitored, 3D-printed, water-cooled condenser vessel for the dehumidification of gas streams. It is easily printable, assembled from off-the-shelf fittings, and purposed for real-time performance monitoring in compact and DIY-friendly applications for under €150.
+Reliable measurement inside compact, humid, condensing environments is challenging, as conventional instrumentation is bulky and unsuitable for smaller-scale setups. Additive manufacturing overcomes this by enabling complex internal geometries at a low cost, iteratively refining core designs. With this work, we present a live-monitored, 3D-printed, water-cooled condenser vessel for the dehumidification of gas streams. It is easily printable, assembled from off-the-shelf fittings, and purposed for real-time performance monitoring in compact and DIY-friendly applications for under €125.
 
 ### System Architecture
 The condenser core is a helical, thin silicone coil (0.5 mm wall) through which chilled water flows while humid gas passes across it. A microcontroller reads all sensors every 10 s: 
