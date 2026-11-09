@@ -1,14 +1,12 @@
 """!
 @file Dashboard.py
-@brief Live dashboard for the ESP32 Enthalyzer (dehumidification edition).
+@brief Live dashboard for the ESP32 Enthalyzer
 
-A Python script to log, parse, and visualize the 22-column timestamped 
+A Python script to log, parse, and visualize the 6-column timestamped 
 raw serial data from the ESP32 Enthalyzer in real-time. 
 
-v6.0 - 22-column output. Gas-side U. 
-       Energy panel now compares Q_latent AND Q_water_gain.
-       Flow panel shows RAW flow + a 10-sample rolling average.
-       CSV logs separate 'date' and 'time' columns.
+v2.0.0 - Gas sensors removed. Redesigned into a 2x2 grid focusing 
+         strictly on Water Temperatures, Delta T, Flow, and Q_water_gain.
 
 @author Ayur Jitendra Ghalot
 @contact ayur.ghalot@tu-dresden.de
@@ -35,7 +33,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 @date 2026-11-06
-@version 1.0.0
+@version 2.0.0
 """
 
 import sys
@@ -55,7 +53,7 @@ from matplotlib.widgets import Button
 # ============================================================
 # CONFIGURATION
 # ============================================================
-PORT               = "COM3" #Select the correct COM port for your ESP32
+PORT               = "COM3" # Select the correct COM port for your ESP32
 BAUD               = 115200
 CONNECT_TIMEOUT_S  = 30
 WINDOW_MIN         = 15
@@ -65,21 +63,14 @@ FLOW_AVG_N         = 10
 LOG_FILE           = f"run_{datetime.now():%Y%m%d_%H%M%S}.csv"
 SNAPSHOT_FMT       = "snapshot_{ts}.png"
 
-# 22 columns - MUST match Arduino header exactly, in order
+# 6 columns - MUST match Arduino header exactly, in order
 COLS = [
     "Runtime_ms",
     "Flow_Lpm_raw",       
     "Flow_Lpm",           
     "T_water_in_C",
     "T_water_out_C",
-    "In_rH", "In_T_C", "h_in_kJkg",
-    "Out_rH", "Out_T_C", "h_out_kJkg",
-    "LMED_kJkg",
-    "w_in_gkg", "w_out_gkg", "dW_gkg", "DehumEff_pct",
-    "Q_sensible_W", "Q_latent_W", "Q_total_W",
-    "Condensate_gph",
-    "U_gas",
-    "Q_water_gain_W",     # NEW COLUMN ADDED
+    "Q_water_gain_W"
 ]
 
 # ============================================================
@@ -97,8 +88,8 @@ plt.rcParams.update({
     "grid.alpha":       0.35,
     "text.color":       "#c9d1d9",
     "font.family":      "DejaVu Sans",
-    "font.size":        9,
-    "axes.titlesize":   10,
+    "font.size":        10,
+    "axes.titlesize":   11,
     "axes.titleweight": "bold",
     "legend.facecolor": "#161b22",
     "legend.edgecolor": "#30363d",
@@ -106,15 +97,11 @@ plt.rcParams.update({
 })
 
 PALETTE = {
-    "w_in":    "#58a6ff", "w_out":   "#f0883e",
-    "air_in":  "#f85149", "air_out": "#ff9e64",
+    "w_in":    "#58a6ff", 
+    "w_out":   "#f0883e",
     "delta":   "#bc8cff",
-    "rh_in":   "#79c0ff", "rh_out":  "#56d364",
-    "h_in":    "#d2a8ff", "h_out":   "#ffa657", "lmed": "#8b949e",
-    "flow":    "#39d0d8", "cond":    "#7ee787",
-    "dw":      "#39d0d8", "dehum":   "#56d364",
-    "q_lat":   "#58a6ff", "q_water": "#a2d2ff",
-    "u_coeff": "#e3b341",
+    "flow":    "#39d0d8", 
+    "q_water": "#a2d2ff"
 }
 
 # ============================================================
@@ -237,146 +224,84 @@ def flow_val(values, unit=" L/min", fmt="{:.2f}", n=FLOW_AVG_N):
 # 5) BUILD FIGURE 
 # ============================================================
 def build_figure():
-    fig = plt.figure(figsize=(16, 11))
-    fig.canvas.manager.set_window_title("ESP32 Enthalyzer - Dehumidification Dashboard")
+    fig = plt.figure(figsize=(16, 9))
+    fig.canvas.manager.set_window_title("ESP32 Enthalyzer - Water-Side Dashboard")
 
     gs = fig.add_gridspec(
-        nrows=4, ncols=2,
-        left=0.06, right=0.94, top=0.90, bottom=0.09,
-        hspace=0.55, wspace=0.28,
+        nrows=2, ncols=2,
+        left=0.06, right=0.94, top=0.88, bottom=0.12,
+        hspace=0.40, wspace=0.20,
     )
 
-    ax_T  = fig.add_subplot(gs[0, 0])   # Water + Air Temperatures
-    ax_dT = fig.add_subplot(gs[0, 1])   # Air-side dT
-    ax_RH = fig.add_subplot(gs[1, 0])   # Relative Humidity
-    ax_H  = fig.add_subplot(gs[1, 1])   # Enthalpy + LMED
-    ax_F  = fig.add_subplot(gs[2, 0])   # Water Flow (raw+avg10) + Condensate
-    ax_D  = fig.add_subplot(gs[2, 1])   # dW + DehumEff
-    ax_B  = fig.add_subplot(gs[3, 0])   # Energy (Q_latent + Q_water_gain)
-    ax_U  = fig.add_subplot(gs[3, 1])   # Gas-side U
+    ax_T  = fig.add_subplot(gs[0, 0])   # Water Temperatures
+    ax_dT = fig.add_subplot(gs[0, 1])   # Water Delta T
+    ax_F  = fig.add_subplot(gs[1, 0])   # Water Flow
+    ax_Q  = fig.add_subplot(gs[1, 1])   # Q_water_gain
 
-    all_axes = [ax_T, ax_dT, ax_RH, ax_H, ax_F, ax_D, ax_B, ax_U]
+    all_axes = [ax_T, ax_dT, ax_F, ax_Q]
 
-    # ---- Panel 1: Water In/Out + Air Temperatures ----
-    ln_win, = ax_T.plot([], [], color=PALETTE["w_in"],   lw=2.0, label="H2O In")
-    ln_wout,= ax_T.plot([], [], color=PALETTE["w_out"],  lw=2.0, label="H2O Out")
-    ln_tin, = ax_T.plot([], [], color=PALETTE["air_in"], lw=1.4, ls="--", label="Air In")
-    ln_tou, = ax_T.plot([], [], color=PALETTE["air_out"],lw=1.4, ls="--", label="Air Out")
-    ax_T.set_title("Water & Air Temperatures")
+    # ---- Panel 1: Water In/Out Temperatures ----
+    ln_win, = ax_T.plot([], [], color=PALETTE["w_in"],   lw=2.0, label="H2O Inlet")
+    ln_wout,= ax_T.plot([], [], color=PALETTE["w_out"],  lw=2.0, label="H2O Outlet")
+    ax_T.set_title("Water Temperatures")
     ax_T.set_ylabel("degC")
-    ax_T.legend(loc="upper left", fontsize=7, ncol=4)
+    ax_T.legend(loc="upper left", fontsize=9, ncol=2)
 
-    # ---- Panel 2: Air-side dT ----
-    ln_dT,  = ax_dT.plot([], [], color=PALETTE["delta"], lw=2.0, label="dT air (in-out)")
-    ax_dT.set_title("Air-Side dT")
+    # ---- Panel 2: Water Delta T (Out - In) ----
+    ln_dT,  = ax_dT.plot([], [], color=PALETTE["delta"], lw=2.0, label="Delta T (Outlet - Inlet)")
+    ax_dT.set_title("Water-Side Differential (ΔT)")
     ax_dT.set_ylabel("degC")
     ax_dT.axhline(0, color="#30363d", lw=0.8)
-    ax_dT.legend(loc="upper left", fontsize=8)
+    ax_dT.legend(loc="upper left", fontsize=9)
 
-    # ---- Panel 3: Relative Humidity ----
-    ln_rhi, = ax_RH.plot([], [], color=PALETTE["rh_in"],  lw=1.8, label="Inlet RH")
-    ln_rho, = ax_RH.plot([], [], color=PALETTE["rh_out"], lw=1.8, label="Outlet RH")
-    ax_RH.set_title("Relative Humidity")
-    ax_RH.set_ylabel("%")
-    ax_RH.set_ylim(0, 105)
-    ax_RH.legend(loc="upper left", fontsize=8, ncol=2)
-
-    # ---- Panel 4: Enthalpies + LMED ----
-    ln_hi,  = ax_H.plot([], [], color=PALETTE["h_in"],  lw=1.8, label="h inlet")
-    ln_ho,  = ax_H.plot([], [], color=PALETTE["h_out"], lw=1.8, label="h outlet")
-    ln_lm,  = ax_H.plot([], [], color=PALETTE["lmed"],  lw=1.6, ls="--", label="LMED")
-    ax_H.set_title("Enthalpy & LMED (signed)")
-    ax_H.set_ylabel("kJ/kg")
-    ax_H.axhline(0, color="#30363d", lw=0.8)
-    ax_H.legend(loc="upper left", fontsize=8, ncol=3)
-
-    # ---- Panel 5: Water Flow RAW + avg (left) + Condensate (right twin) ----
+    # ---- Panel 3: Water Flow RAW + avg ----
     ln_flow_raw, = ax_F.plot([], [], color=PALETTE["flow"], lw=1.0, alpha=0.45, label="Flow raw (L/min)")
     ln_flow_avg, = ax_F.plot([], [], color="#ffffff", lw=2.0, label=f"Flow avg-{FLOW_AVG_N} (L/min)")
-    ax_F.set_title("Water Flow & Condensate Rate")
-    ax_F.set_ylabel("L/min", color=PALETTE["flow"])
-    ax_F.tick_params(axis="y", labelcolor=PALETTE["flow"])
-    ax_F.spines["left"].set_color(PALETTE["flow"])
-    ax_F2 = ax_F.twinx()
-    ln_cond,= ax_F2.plot([], [], color=PALETTE["cond"], lw=2.0, label="Condensate (g/h)")
-    ax_F2.set_ylabel("g/h", color=PALETTE["cond"])
-    ax_F2.tick_params(axis="y", labelcolor=PALETTE["cond"])
-    ax_F2.spines["right"].set_color(PALETTE["cond"])
-    ax_F.legend(handles=[ln_flow_raw, ln_flow_avg, ln_cond],
-                labels=[ln_flow_raw.get_label(), ln_flow_avg.get_label(), ln_cond.get_label()],
-                loc="upper left", fontsize=8, ncol=3)
+    ax_F.set_title("Cooling Water Flow Rate")
+    ax_F.set_ylabel("L/min")
+    ax_F.set_ylim(bottom=0)
+    ax_F.legend(loc="upper left", fontsize=9, ncol=2)
 
-    # ---- Panel 6: Moisture removed (left) + DehumEff (right twin) ----
-    ln_dw,  = ax_D.plot([], [], color=PALETTE["dw"], lw=2.4, label="dW (g/kg)")
-    ax_D.set_title("DEHUMIDIFICATION: Moisture Removed & Efficiency")
-    ax_D.set_ylabel("dW  [g/kg]", color=PALETTE["dw"])
-    ax_D.tick_params(axis="y", labelcolor=PALETTE["dw"])
-    ax_D.spines["left"].set_color(PALETTE["dw"])
-    ax_D.axhline(0, color="#30363d", lw=0.6)
-    ax_D2 = ax_D.twinx()
-    ln_de,  = ax_D2.plot([], [], color=PALETTE["dehum"], lw=2.4, label="Dehum. Eff (%)")
-    ax_D2.set_ylabel("Dehum. Eff [%]", color=PALETTE["dehum"])
-    ax_D2.tick_params(axis="y", labelcolor=PALETTE["dehum"])
-    ax_D2.spines["right"].set_color(PALETTE["dehum"])
-    ax_D2.set_ylim(0, 110)
-    ax_D2.axhline(100, color="#30363d", ls=":", lw=0.8)
-    ax_D.legend(handles=[ln_dw, ln_de], labels=[ln_dw.get_label(), ln_de.get_label()],
-                loc="upper left", fontsize=8, ncol=2)
-
-    # ---- Panel 7: Energy (Q_latent vs Q_water_gain) ----
-    ln_ql,  = ax_B.plot([], [], color=PALETTE["q_lat"], lw=2.2, label="Q latent")
-    ln_qw,  = ax_B.plot([], [], color=PALETTE["q_water"], lw=2.2, ls="--", label="Q water gain")
-    ax_B.set_title("Energy: Q Latent vs Q Water Gain")
-    ax_B.set_ylabel("W")
-    ax_B.axhline(0, color="#30363d", lw=0.6)
-    ax_B.legend(loc="upper left", fontsize=8, ncol=2)
-
-    # ---- Panel 8: Gas-side Overall U ----
-    ln_U,   = ax_U.plot([], [], color=PALETTE["u_coeff"], lw=2.2, label="U gas [W/(m2.kJ/kg)]")
-    ax_U.set_title("Gas-Side Overall U  (Q_total / A.F.LMED)")
-    ax_U.set_ylabel("U  [W/(m2.kJ/kg)]", color=PALETTE["u_coeff"])
-    ax_U.tick_params(axis="y", labelcolor=PALETTE["u_coeff"])
-    ax_U.spines["left"].set_color(PALETTE["u_coeff"])
-    ax_U.axhline(0, color="#30363d", lw=0.6)
-    ax_U.legend(loc="upper left", fontsize=8)
+    # ---- Panel 4: Heat Gain (Q_water) ----
+    ln_qw,  = ax_Q.plot([], [], color=PALETTE["q_water"], lw=2.2, label="Q water gain")
+    ax_Q.set_title("Water-Side Heat Gain (Cooling Duty)")
+    ax_Q.set_ylabel("W")
+    ax_Q.axhline(0, color="#30363d", lw=0.6)
+    ax_Q.legend(loc="upper left", fontsize=9)
 
     for ax in all_axes:
         ax.grid(True, alpha=0.3)
-        ax.set_xlabel("Time (min)", fontsize=8)
+        ax.set_xlabel("Time (min)", fontsize=9)
 
     # ============================================================
     # HEADER & FOOTER
     # ============================================================
-    fig.suptitle("ESP32 Enthalyzer - Live Dehumidification Dashboard",
-                 fontsize=13, fontweight="bold", color="#f0f6fc", x=0.06, y=0.975, ha="left")
+    fig.suptitle("ESP32 Enthalyzer - Live Water-Side Diagnostic Dashboard",
+                 fontsize=15, fontweight="bold", color="#f0f6fc", x=0.06, y=0.96, ha="left")
 
-    info_text = fig.text(0.30, 0.958, "", fontsize=9, color="#8b949e", ha="left")
-    status_text = fig.text(0.94, 0.958, "CONNECTING...", fontsize=10, fontweight="bold", 
+    info_text = fig.text(0.40, 0.94, "", fontsize=10, color="#8b949e", ha="left")
+    status_text = fig.text(0.94, 0.94, "CONNECTING...", fontsize=12, fontweight="bold", 
                            color="#f0b429", ha="right", va="center",
                            bbox=dict(boxstyle="round,pad=0.4", facecolor="#161b22", edgecolor="#30363d", alpha=0.9))
 
-    stats_box = fig.text(0.50, 0.020, "", fontsize=8, color="#c9d1d9", ha="center", family="DejaVu Sans Mono",
-                         bbox=dict(boxstyle="round,pad=0.5", facecolor="#161b22", edgecolor="#30363d", alpha=0.9))
+    stats_box = fig.text(0.50, 0.030, "", fontsize=11, color="#c9d1d9", ha="center", family="DejaVu Sans Mono",
+                         bbox=dict(boxstyle="round,pad=0.6", facecolor="#161b22", edgecolor="#30363d", alpha=0.9))
 
     lines = {
-        "T_water_in_C":  ln_win,  "T_water_out_C": ln_wout,
-        "In_T_C": ln_tin, "Out_T_C": ln_tou, "dT": ln_dT,
-        "In_rH": ln_rhi, "Out_rH": ln_rho,
-        "h_in_kJkg": ln_hi, "h_out_kJkg": ln_ho, "LMED_kJkg": ln_lm,
-        "Flow_Lpm_raw": ln_flow_raw, "Flow_avg10": ln_flow_avg,
-        "Condensate_gph": ln_cond,
-        "dW_gkg": ln_dw, "DehumEff_pct": ln_de,
-        "Q_latent_W": ln_ql, "Q_water_gain_W": ln_qw,
-        "U_gas": ln_U,
+        "T_water_in_C":  ln_win,  
+        "T_water_out_C": ln_wout,
+        "dT": ln_dT,
+        "Flow_Lpm_raw": ln_flow_raw, 
+        "Flow_avg10": ln_flow_avg,
+        "Q_water_gain_W": ln_qw,
     }
-    twins = {"ax_F2": ax_F2, "ax_D2": ax_D2}
 
-    return (fig, lines, all_axes, twins, status_text, info_text, stats_box)
+    return (fig, lines, all_axes, status_text, info_text, stats_box)
 
 # ============================================================
 # 6) UPDATER
 # ============================================================
-def make_updater(lines, all_axes, twins, status_text, info_text, stats_box):
+def make_updater(lines, all_axes, status_text, info_text, stats_box):
 
     def autoscale_y(ax, values_list, pad_frac=0.10, floor=None, ceil=None):
         flat = []
@@ -391,8 +316,6 @@ def make_updater(lines, all_axes, twins, status_text, info_text, stats_box):
         if floor is not None: lo = max(lo, floor)
         if ceil  is not None: hi = min(hi, ceil)
         ax.set_ylim(lo, hi)
-
-    ax_F2 = twins["ax_F2"]; ax_D2 = twins["ax_D2"]
 
     def update(_):
         with _lock:
@@ -413,8 +336,8 @@ def make_updater(lines, all_axes, twins, status_text, info_text, stats_box):
 
         for key, ln in lines.items():
             if key == "dT":
-                if snap["In_T_C"] and snap["Out_T_C"]:
-                    dT = np.array(snap["In_T_C"]) - np.array(snap["Out_T_C"])
+                if snap["T_water_in_C"] and snap["T_water_out_C"]:
+                    dT = np.array(snap["T_water_out_C"]) - np.array(snap["T_water_in_C"])
                     ln.set_data(xs, dT)
             elif key == "Flow_avg10":
                 if snap["Flow_Lpm_raw"]:
@@ -424,31 +347,21 @@ def make_updater(lines, all_axes, twins, status_text, info_text, stats_box):
 
         xmax = xs[-1]; xmin = max(0, xmax - WINDOW_MIN)
         for ax in all_axes: ax.set_xlim(xmin, xmax + 0.05)
-        for tw in (ax_F2, ax_D2): tw.set_xlim(xmin, xmax + 0.05)
 
-        ax_T, ax_dT, ax_RH, ax_H, ax_F, ax_D, ax_B, ax_U = all_axes
-        autoscale_y(ax_T,  [snap["T_water_in_C"], snap["T_water_out_C"], snap["In_T_C"], snap["Out_T_C"]])
-        if snap["In_T_C"] and snap["Out_T_C"]:
-            dT_arr = np.array(snap["In_T_C"]) - np.array(snap["Out_T_C"])
+        ax_T, ax_dT, ax_F, ax_Q = all_axes
+        autoscale_y(ax_T,  [snap["T_water_in_C"], snap["T_water_out_C"]])
+        if snap["T_water_in_C"] and snap["T_water_out_C"]:
+            dT_arr = np.array(snap["T_water_out_C"]) - np.array(snap["T_water_in_C"])
             autoscale_y(ax_dT, [list(dT_arr)])
-        autoscale_y(ax_H,  [snap["h_in_kJkg"], snap["h_out_kJkg"], snap["LMED_kJkg"]])
         autoscale_y(ax_F,  [snap["Flow_Lpm_raw"]], floor=0)   
-        autoscale_y(ax_F2, [snap["Condensate_gph"]], floor=0)
-        autoscale_y(ax_D,  [snap["dW_gkg"]])
-        autoscale_y(ax_B,  [snap["Q_latent_W"], snap["Q_water_gain_W"]])
-        autoscale_y(ax_U,  [snap["U_gas"]])
+        autoscale_y(ax_Q,  [snap["Q_water_gain_W"]])
 
-        # ---- Footer: Added Q_water_gain read-out ----
+        # ---- Footer Readout ----
         s = (
-            f"H2O_in: {live_val(snap['T_water_in_C'],' C','{:6.2f}')}  |  "
-            f"H2O_out: {live_val(snap['T_water_out_C'],' C','{:6.2f}')}  |  "
-            f"Flow: {flow_val(snap['Flow_Lpm_raw'],' L/min','{:5.2f}')}\n"
-            f"dW: {live_val(snap['dW_gkg'],' g/kg','{:6.2f}')}  |  "
-            f"DehumEff: {live_val(snap['DehumEff_pct'],' %','{:5.1f}')}  |  "
-            f"Condensate: {live_val(snap['Condensate_gph'],' g/h','{:6.2f}')}\n"
-            f"Q_latent: {live_val(snap['Q_latent_W'],' W','{:6.3f}')}  |  "
-            f"U_gas: {live_val(snap['U_gas'],'','{:7.1f}')}  |  "
-            f"Q_water: {live_val(snap['Q_water_gain_W'],' W','{:6.3f}')}"
+            f"H2O_Inlet: {live_val(snap['T_water_in_C'],' °C','{:6.2f}')}   |   "
+            f"H2O_Outlet: {live_val(snap['T_water_out_C'],' °C','{:6.2f}')}   |   "
+            f"Flow: {flow_val(snap['Flow_Lpm_raw'],' L/min','{:5.2f}')}   |   "
+            f"Heat Gain (Q): {live_val(snap['Q_water_gain_W'],' W','{:6.2f}')}"
         )
         stats_box.set_text(s)
 
@@ -458,9 +371,9 @@ def make_updater(lines, all_axes, twins, status_text, info_text, stats_box):
 # 7) CONTROL BUTTONS
 # ============================================================
 def add_controls(fig):
-    ax_pause  = fig.add_axes([0.06, 0.005, 0.09, 0.030])
-    ax_snap   = fig.add_axes([0.16, 0.005, 0.09, 0.030])
-    ax_clear  = fig.add_axes([0.26, 0.005, 0.09, 0.030])
+    ax_pause  = fig.add_axes([0.06, 0.015, 0.08, 0.035])
+    ax_snap   = fig.add_axes([0.15, 0.015, 0.08, 0.035])
+    ax_clear  = fig.add_axes([0.24, 0.015, 0.08, 0.035])
 
     btn_pause = Button(ax_pause, "Pause",    color="#21262d", hovercolor="#30363d")
     btn_snap  = Button(ax_snap,  "Snapshot", color="#21262d", hovercolor="#30363d")
@@ -468,7 +381,7 @@ def add_controls(fig):
 
     for b in (btn_pause, btn_snap, btn_clear):
         b.label.set_color("#c9d1d9")
-        b.label.set_fontsize(9)
+        b.label.set_fontsize(10)
 
     def on_pause(_):
         paused[0] = not paused[0]
@@ -505,12 +418,12 @@ def main():
     t = threading.Thread(target=reader_thread, args=(ser, first_frame, writer), daemon=True)
     t.start()
 
-    (fig, lines, all_axes, twins, status_text, info_text, stats_box) = build_figure()
+    (fig, lines, all_axes, status_text, info_text, stats_box) = build_figure()
     add_controls(fig)
 
     ani = FuncAnimation(
         fig,
-        make_updater(lines, all_axes, twins, status_text, info_text, stats_box),
+        make_updater(lines, all_axes, status_text, info_text, stats_box),
         interval=1000, blit=False, cache_frame_data=False,
     )
 
