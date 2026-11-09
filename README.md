@@ -7,26 +7,18 @@ Reliable measurement inside compact, humid, condensing environments is challengi
 The condenser core is a helical, thin silicone coil (0.5 mm wall) through which chilled water flows while humid gas passes across it. A microcontroller reads all sensors every 10 s: 
 * Two 4-wire RTDs for water inlet and outlet temperatures
 * A flow sensor for water flow rate
-* Two combined temperature–humidity sensors for the gas stream, from which moist-gas enthalpy is derived. 
 
-From these live readings, the firmware computes the thermal duty (Q̇), the logarithmic mean enthalpy difference (LMED), effectiveness (%), and the overall enthalpy-based transfer coefficient (U), all streamed to a custom dashboard for continuous monitoring. This demonstrates that a low-cost sensor setup can track thermodynamic performance metrics that would otherwise require laboratory-grade instrumentation, while producing time-resolved data valuable for validating and calibrating simulation models.
+From these live readings, the firmware computes the real-time water-side heat gain (cooling duty, Q_water), which is streamed to a custom dashboard for continuous monitoring. This demonstrates that a low-cost sensor setup can track thermodynamic performance metrics that would otherwise require laboratory-grade instrumentation, while producing time-resolved data valuable for validating condenser performance and calibrating simulation models.
 
 ### Dashboard & Sensor Network
 The real-time performance dashboard aggregates data from:
-* 2× SHT45 sensors (Sensirion, Stäfa, CH)
 * 2× PT100 RTDs with Adafruit PT100 RTD Temperature Sensor Amplifiers - MAX31865, 4-wire (Adafruit, NY, USA)
 * 1× Biotech FCH-m-POM mini flow meter (Biotech, Vilshofen, DE)
 
 <br>
 
 <p align="center">
-  <img width="800" alt="Process and instrumentation schematic" src="https://github.com/user-attachments/assets/48ddd521-3473-4a65-a05b-9796c32577ce" />
+  <img width="800" alt="Process and instrumentation schematic" src="https://github.com/user-attachments/assets/26be32ff-801f-4081-b52b-92d2a110cffa" />
   <br>
   <em>Figure 1: Process and instrumentation schematic of the compact 3D-printed condenser with real-time performance dashboard.</em>
-</p>
-
-<p align="center">
-  <img width="800" alt="Enthalyzer Circuit Connection" src="https://github.com/user-attachments/assets/58d5e34e-c747-475b-839a-70b4a077cd13" />
-  <br>
-  <em>Figure 2: Enthalyzer circuit connection wiring diagram.</em>
 </p>
